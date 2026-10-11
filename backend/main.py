@@ -1,5 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from config.database import engine, Base
+import models  # Importará tus modelos futuros para registrarlos
+
+# Crea las tablas en la base de datos si no existen
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="ServiTrack API",
@@ -7,7 +12,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configuración de CORS para permitir peticiones desde el frontend (Vite)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
