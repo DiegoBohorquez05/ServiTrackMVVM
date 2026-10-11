@@ -1,19 +1,23 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from config.database import get_db
-from services.user_service import get_all_users, get_user_by_id
+from fastapi import APIRouter, HTTPException
+from config.supabase import supabase
+from schemas.schemas import UsuarioCreate, UsuarioResponse
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
-@router.get("/", response_model=list)
-def listar_usuarios(db: Session = Depends(get_db)):
-    """Endpoint para listar todos los usuarios"""
-    return get_all_users(db)
+@router.get("/", response_model=list[UsuarioResponse])
+def get_usuarios():
+    try:
+        response = supabase.table("usuarios").select("*").execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/{user_id}")
-def obtener_usuario(user_id: str, db: Session = Depends(get_db)):
-    """Endpoint para buscar un usuario por su ID"""
-    user = get_user_by_id(db, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    return user
+@router.post("/", response_model=UsuarioResponse)
+def create_usuario(usuario: UsuarioCreate):
+    try:
+        response = supabase.table("usuarios").insert(usuario.dict()).execute()
+        if not response.data:
+            raise HTTPException(status_code=400, detail="No se pudo crear el usuario")
+        return response.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

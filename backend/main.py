@@ -1,27 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from config.database import engine
-from routers import role_router, user_router, ticket_router  # Importamos ticket_router
+from routers import role_router, user_router, ticket_router
 
-app = FastAPI(
-    title="ServiTrack API",
-    description="Backend para la gestión y seguimiento de servicios (MVVM)",
-    version="1.0.0"
-)
+app = FastAPI(title="ServiTrack API (Direct Supabase)", version="2.0")
 
+# Configurar CORS para permitir peticiones del frontend (React / Vite)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["*"],  # En producción puedes restringirlo a tu dominio o puerto de frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Incluir todas las rutas
+# Registrar los routers
 app.include_router(role_router.router)
 app.include_router(user_router.router)
 app.include_router(ticket_router.router)
 
 @app.get("/")
 def read_root():
-    return {"message": "¡Bienvenido al backend de ServiTrack!", "status": "activo"}
+    return {"message": "Bienvenido a ServiTrack API - Conectado directo a Supabase"}
