@@ -2,9 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Reemplaza esta cadena con tu Connection Pooling URL de Supabase
-# (asegúrate de cambiar [TU-PASSWORD] por la contraseña de tu base de datos)
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:gFy@v77Fx.SCbLm@db.ecaotydalwvwjzlwxmuv.supabase.co:5432/postgres"
+SQLALCHEMY_DATABASE_URL = "postgresql+psycopg2://postgres:gFy@v77Fx.SCbLm@db.ecaotydalwvwjzlwxmuv.supabase.co:5432/postgres"
 
 # Creamos el motor de base de datos para PostgreSQL (Supabase)
 engine = create_engine(SQLALCHEMY_DATABASE_URL)

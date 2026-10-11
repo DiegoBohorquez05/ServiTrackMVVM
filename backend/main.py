@@ -1,10 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from config.database import engine, Base
-import models  # Importará tus modelos futuros para registrarlos
-
-# Crea las tablas en la base de datos si no existen
-Base.metadata.create_all(bind=engine)
+from config.database import engine
+from routers import role_router, user_router, ticket_router  # Importamos ticket_router
 
 app = FastAPI(
     title="ServiTrack API",
@@ -19,6 +16,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Incluir todas las rutas
+app.include_router(role_router.router)
+app.include_router(user_router.router)
+app.include_router(ticket_router.router)
 
 @app.get("/")
 def read_root():
