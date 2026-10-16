@@ -18,4 +18,15 @@ export const ticketService = {
         if (!response.ok) throw new Error(data.detail || "Error al crear el ticket");
         return data;
     },
+
+    async responderTicket(ticketId, datos) {
+        const response = await fetch(`http://localhost:8000/tickets/${ticketId}`, {
+            method: "PUT", // O "PATCH" ya que el backend ahora acepta ambos
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(datos),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "Error al actualizar el ticket");
+        return data;
+    },
 };

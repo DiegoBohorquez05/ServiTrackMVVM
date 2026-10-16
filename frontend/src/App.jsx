@@ -16,7 +16,7 @@ export function App() {
     const [password, setPassword] = useState("");
     const [rolId, setRolId] = useState("");
 
-    // Estados para Tickets (Clientes y Técnicos)
+    // Estados para Tickets
     const [tickets, setTickets] = useState([]);
     const [titulo, setTitulo] = useState("");
     const [descripcion, setDescripcion] = useState("");
@@ -25,7 +25,7 @@ export function App() {
     const [ticketError, setTicketError] = useState(null);
     const [ticketSuccess, setTicketSuccess] = useState(null);
 
-    // Filtros visuales para Técnicos
+    // Filtros para Técnico
     const [filtroCategoria, setFiltroCategoria] = useState("Todas");
     const [filtroPrioridad, setFiltroPrioridad] = useState("Todas");
 
@@ -43,11 +43,9 @@ export function App() {
                 const assignable = rolesData.filter(r => r.nombre.toLowerCase() !== "administrador");
                 if (assignable.length > 0) setRolId(assignable[0].id);
             } else if (rolNombre.includes("tecnico") || rolNombre.includes("soporte")) {
-                // El técnico ve todos los tickets del sistema
                 const ticketsData = await ticketService.getTickets();
                 setTickets(ticketsData);
             } else {
-                // El cliente ve solo sus tickets
                 const ticketsData = await ticketService.getTickets(currentUser.id);
                 setTickets(ticketsData);
             }
@@ -117,12 +115,10 @@ export function App() {
     const isTecnico = rolLower.includes("tecnico") || rolLower.includes("soporte");
     const isCliente = !isAdmin && !isTecnico;
 
-    // Filtrados para Admin
     const assignableRoles = roles.filter(r => r.nombre.toLowerCase() !== "administrador");
     const soporteUsers = usuarios.filter(u => u.roles?.nombre?.toLowerCase().includes("tecnico") || u.roles?.nombre?.toLowerCase().includes("soporte"));
     const empleadoUsers = usuarios.filter(u => u.roles?.nombre?.toLowerCase().includes("cliente") || u.roles?.nombre?.toLowerCase().includes("empleado") || u.roles?.nombre?.toLowerCase().includes("trabajador"));
 
-    // Filtrados de tickets aplicados para Técnicos
     const ticketsFiltrados = tickets.filter(t => {
         const matchCat = filtroCategoria === "Todas" || t.categoria === filtroCategoria;
         const matchPri = filtroPrioridad === "Todas" || t.prioridad === filtroPrioridad;
@@ -132,6 +128,124 @@ export function App() {
     const ticketsAbiertos = ticketsFiltrados.filter(t => t.estado === "Abierto");
     const ticketsEnProceso = ticketsFiltrados.filter(t => t.estado === "En Proceso");
     const ticketsCerrados = ticketsFiltrados.filter(t => t.estado === "Cerrado" || t.estado === "Resuelto");
+
+    // Función genérica para renderizar una tarjeta de ticket
+    const renderTicketCard = (t, isClosedColumn = false) => (
+        <div key={t.id} style={{ background: "#111827", padding: "12px", borderRadius: "6px", marginBottom: "10px", border: "1px solid #1f2937", fontSize: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                <span style={{ color: "#38bdf8", fontWeight: "bold", fontSize: "11px" }}>#{t.id} - {t.categoria}</span>
+                <span style={{ background: isClosedColumn ? "#065f46" : (t.prioridad === "Alta" ? "#7f1d1d" : "#1e3a8a"), color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px" }}>
+          {isClosedColumn ? "Resuelto" : t.prioridad}
+        </span>
+            </div>
+            <div style={{ fontWeight: "bold", color: "#fff", fontSize: "13px", marginBottom: "4px" }}>{t.titulo}</div>
+            <div style={{ color: "#9ca3af", fontSize: "11px", marginBottom: "8px" }}>{t.descripcion}</div>
+            {t.usuarios?.nombre && <div style={{ color: "#6b7280", fontSize: "10px", marginBottom: "8px" }}>Por: {t.usuarios.nombre}</div>}
+
+            {/* Historial de Respuestas */}
+            {t.historial && t.historial.length > 0 && (
+                <div style={{ marginTop: "8px", background: "#1f2937", padding: "8px", borderRadius: "4px", borderLeft: `3px solid ${isClosedColumn ? "#4ade80" : "#0ea5e9"}` }}>
+          <span style={{ color: isClosedColumn ? "#4ade80" : "#38bdf8", fontWeight: "bold", fontSize: "10px", display: "block", marginBottom: "3px" }}>
+            💬 Historial:
+          </span>
+                    {t.historial.map((h, i) => (
+                        <div key={i} style={{ fontSize: "11px", color: "#e5e7eb", marginBottom: "2px" }}>
+                            <strong style={{ color: h.autor === "Cliente" ? "#a7f3d0" : "#bfdbfe" }}>{h.autor || "Soporte"}:</strong> {h.mensaje}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Acciones para TÉCNICOS (Solo si el ticket NO está en la columna de Cerrados) */}
+            {isTecnico && !isClosedColumn && (
+                <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
+                    <div style={{ fontSize: "10px", color: "#38bdf8", marginBottom: "4px" }}>Agregar respuesta / diagnóstico:</div>
+                    <input
+                        type="text"
+                        placeholder="Escribe una respuesta..."
+                        id={`resp-tec-${t.id}`}
+                        style={{ width: "100%", padding: "6px", background: "#1f2937", border: "1px solid #374151", borderRadius: "4px", color: "#fff", fontSize: "11px", boxSizing: "border-box", marginBottom: "6px" }}
+                    />
+                    <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                            onClick={async () => {
+                                const inputVal = document.getElementById(`resp-tec-${t.id}`).value;
+                                if (!inputVal) return alert("Escribe una respuesta primero");
+                                try {
+                                    await ticketService.responderTicket(t.id, { respuesta: inputVal, estado: "En Proceso", autor: "Técnico" });
+                                    fetchData(user);
+                                } catch (err) {
+                                    alert("Error al responder el ticket");
+                                }
+                            }}
+                            style={{ flex: 1, padding: "5px", background: "#0ea5e9", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "11px" }}
+                        >
+                            Enviar Respuesta
+                        </button>
+                        <button
+                            onClick={async () => {
+                                try {
+                                    await ticketService.responderTicket(t.id, { estado: "Cerrado" });
+                                    alert("Ticket marcado como resuelto");
+                                    fetchData(user);
+                                } catch (err) {
+                                    alert("Error al cerrar el ticket");
+                                }
+                            }}
+                            style={{ padding: "5px 8px", background: "#059669", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "11px" }}
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Acciones para CLIENTE / EMPLEADO (Solo si el ticket NO está cerrado) */}
+            {isCliente && !isClosedColumn && (
+                <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
+                    <div style={{ fontSize: "10px", color: "#a7f3d0", marginBottom: "4px" }}>¿El problema persiste? Responder a Soporte:</div>
+                    <input
+                        type="text"
+                        placeholder="Escribe una réplica..."
+                        id={`resp-cli-${t.id}`}
+                        style={{ width: "100%", padding: "6px", background: "#1f2937", border: "1px solid #374151", borderRadius: "4px", color: "#fff", fontSize: "11px", boxSizing: "border-box", marginBottom: "6px" }}
+                    />
+                    <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                            onClick={async () => {
+                                const inputVal = document.getElementById(`resp-cli-${t.id}`).value;
+                                if (!inputVal) return alert("Escribe un mensaje primero");
+                                try {
+                                    await ticketService.responderTicket(t.id, { respuesta: inputVal, autor: "Cliente" });
+                                    document.getElementById(`resp-cli-${t.id}`).value = "";
+                                    fetchData(user);
+                                } catch (err) {
+                                    alert("Error al enviar réplica");
+                                }
+                            }}
+                            style={{ flex: 1, padding: "5px", background: "#0284c7", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "11px" }}
+                        >
+                            Enviar Mensaje
+                        </button>
+                        <button
+                            onClick={async () => {
+                                try {
+                                    await ticketService.responderTicket(t.id, { estado: "Cerrado" });
+                                    alert("¡Excelente! Ticket marcado como solucionado.");
+                                    fetchData(user);
+                                } catch (err) {
+                                    alert("Error al marcar como solucionado");
+                                }
+                            }}
+                            style={{ padding: "5px 8px", background: "#10b981", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold", fontSize: "11px" }}
+                        >
+                            ✔ Marcar Solucionado
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 
     return (
         <div style={{ fontFamily: "sans-serif", background: "#0b0f19", minHeight: "100vh", width: "100%", color: "#fff", paddingBottom: "40px", boxSizing: "border-box" }}>
@@ -151,9 +265,7 @@ export function App() {
 
             <div style={{ padding: "24px 30px", width: "100%", boxSizing: "border-box" }}>
 
-                {/* ========================================================= */}
-                {/* VISTA DE ADMINISTRADOR                                    */}
-                {/* ========================================================= */}
+                {/* VISTA ADMINISTRADOR */}
                 {isAdmin && (
                     <>
                         <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "20px", marginBottom: "24px" }}>
@@ -214,9 +326,7 @@ export function App() {
                     </>
                 )}
 
-                {/* ========================================================= */}
-                {/* VISTA DE CLIENTE / EMPLEADO (Creación de tickets propios)  */}
-                {/* ========================================================= */}
+                {/* VISTA CLIENTE / EMPLEADO */}
                 {isCliente && (
                     <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "20px", marginBottom: "24px" }}>
                         <h3 style={{ fontSize: "15px", marginBottom: "15px", color: "#e5e7eb" }}>🎫 Crear Nuevo Ticket de Soporte</h3>
@@ -254,9 +364,7 @@ export function App() {
                     </div>
                 )}
 
-                {/* ========================================================= */}
-                {/* BARRA DE FILTROS (Visible exclusivamente para Técnicos)     */}
-                {/* ========================================================= */}
+                {/* BARRA DE FILTROS TÉCNICO */}
                 {isTecnico && (
                     <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "15px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
             <span style={{ fontSize: "14px", fontWeight: "bold", color: "#e5e7eb", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -286,9 +394,7 @@ export function App() {
                     </div>
                 )}
 
-                {/* ========================================================= */}
-                {/* TABLERO DE INCIDENCIAS TI (Kanban de tickets)             */}
-                {/* ========================================================= */}
+                {/* TABLERO DE INCIDENCIAS */}
                 <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "20px" }}>
                     <h3 style={{ fontSize: "15px", marginBottom: "15px", color: "#e5e7eb" }}>
                         {isTecnico ? "📋 Tablero de Gestión de Incidencias TI" : "📋 Tablero de Mis Tickets de Soporte"}
@@ -296,7 +402,7 @@ export function App() {
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px" }}>
 
-                        {/* Columna Abiertos */}
+                        {/* Abiertos */}
                         <div style={{ background: "#0b0f19", border: "1px solid #1f2937", borderRadius: "6px", padding: "15px", minHeight: "180px" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#fbbf24", fontSize: "13px", fontWeight: "bold", marginBottom: "12px", borderBottom: "1px solid #1f2937", paddingBottom: "8px" }}>
                                 <span>🕒 Abiertos</span><span>{ticketsAbiertos.length}</span>
@@ -304,29 +410,11 @@ export function App() {
                             {ticketsAbiertos.length === 0 ? (
                                 <div style={{ color: "#6b7280", fontSize: "12px", textAlign: "center", marginTop: "35px" }}>Sin tickets en esta columna</div>
                             ) : (
-                                ticketsAbiertos.map(t => (
-                                    <div key={t.id} style={{ background: "#111827", padding: "12px", borderRadius: "6px", marginBottom: "10px", border: "1px solid #1f2937", fontSize: "12px" }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                                            <span style={{ color: "#38bdf8", fontWeight: "bold", fontSize: "11px" }}>#{t.id} - {t.categoria}</span>
-                                            <span style={{ background: t.prioridad === "Alta" ? "#7f1d1d" : "#1e3a8a", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px" }}>{t.prioridad}</span>
-                                        </div>
-                                        <div style={{ fontWeight: "bold", color: "#fff", fontSize: "13px", marginBottom: "4px" }}>{t.titulo}</div>
-                                        <div style={{ color: "#9ca3af", fontSize: "11px", marginBottom: "8px" }}>{t.descripcion}</div>
-                                        {t.usuarios?.nombre && <div style={{ color: "#6b7280", fontSize: "10px", marginBottom: "8px" }}>Por: {t.usuarios.nombre}</div>}
-
-                                        {/* Campo de respuesta visible para Técnicos */}
-                                        {isTecnico && (
-                                            <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
-                                                <div style={{ fontSize: "10px", color: "#38bdf8", marginBottom: "4px" }}>Agregar respuesta / diagnóstico:</div>
-                                                <input type="text" placeholder="Escribe una respuesta y presiona Enter..." style={{ width: "100%", padding: "6px", background: "#1f2937", border: "1px solid #374151", borderRadius: "4px", color: "#fff", fontSize: "11px", boxSizing: "border-box" }} />
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
+                                ticketsAbiertos.map(t => renderTicketCard(t, false))
                             )}
                         </div>
 
-                        {/* Columna En Proceso */}
+                        {/* En Proceso */}
                         <div style={{ background: "#0b0f19", border: "1px solid #1f2937", borderRadius: "6px", padding: "15px", minHeight: "180px" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#60a5fa", fontSize: "13px", fontWeight: "bold", marginBottom: "12px", borderBottom: "1px solid #1f2937", paddingBottom: "8px" }}>
                                 <span>⚙️ En Proceso</span><span>{ticketsEnProceso.length}</span>
@@ -334,27 +422,11 @@ export function App() {
                             {ticketsEnProceso.length === 0 ? (
                                 <div style={{ color: "#6b7280", fontSize: "12px", textAlign: "center", marginTop: "35px" }}>Sin tickets en esta columna</div>
                             ) : (
-                                ticketsEnProceso.map(t => (
-                                    <div key={t.id} style={{ background: "#111827", padding: "12px", borderRadius: "6px", marginBottom: "10px", border: "1px solid #1f2937", fontSize: "12px" }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                                            <span style={{ color: "#38bdf8", fontWeight: "bold", fontSize: "11px" }}>#{t.id} - {t.categoria}</span>
-                                            <span style={{ background: "#1e3a8a", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px" }}>{t.prioridad}</span>
-                                        </div>
-                                        <div style={{ fontWeight: "bold", color: "#fff", fontSize: "13px", marginBottom: "4px" }}>{t.titulo}</div>
-                                        <div style={{ color: "#9ca3af", fontSize: "11px", marginBottom: "8px" }}>{t.descripcion}</div>
-                                        {t.usuarios?.nombre && <div style={{ color: "#6b7280", fontSize: "10px", marginBottom: "8px" }}>Por: {t.usuarios.nombre}</div>}
-
-                                        {isTecnico && (
-                                            <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
-                                                <input type="text" placeholder="Escribe una respuesta y presiona Enter..." style={{ width: "100%", padding: "6px", background: "#1f2937", border: "1px solid #374151", borderRadius: "4px", color: "#fff", fontSize: "11px", boxSizing: "border-box" }} />
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
+                                ticketsEnProceso.map(t => renderTicketCard(t, false))
                             )}
                         </div>
 
-                        {/* Columna Cerrados / Resueltos */}
+                        {/* Cerrados / Resueltos */}
                         <div style={{ background: "#0b0f19", border: "1px solid #1f2937", borderRadius: "6px", padding: "15px", minHeight: "180px" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", color: "#4ade80", fontSize: "13px", fontWeight: "bold", marginBottom: "12px", borderBottom: "1px solid #1f2937", paddingBottom: "8px" }}>
                                 <span>✔️ Cerrados / Resueltos</span><span>{ticketsCerrados.length}</span>
@@ -362,16 +434,7 @@ export function App() {
                             {ticketsCerrados.length === 0 ? (
                                 <div style={{ color: "#6b7280", fontSize: "12px", textAlign: "center", marginTop: "35px" }}>Sin tickets en esta columna</div>
                             ) : (
-                                ticketsCerrados.map(t => (
-                                    <div key={t.id} style={{ background: "#111827", padding: "12px", borderRadius: "6px", marginBottom: "10px", border: "1px solid #1f2937", fontSize: "12px" }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
-                                            <span style={{ color: "#38bdf8", fontWeight: "bold", fontSize: "11px" }}>#{t.id} - {t.categoria}</span>
-                                            <span style={{ background: "#065f46", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px" }}>Resuelto</span>
-                                        </div>
-                                        <div style={{ fontWeight: "bold", color: "#fff", fontSize: "13px", marginBottom: "4px" }}>{t.titulo}</div>
-                                        <div style={{ color: "#9ca3af", fontSize: "11px" }}>{t.descripcion}</div>
-                                    </div>
-                                ))
+                                ticketsCerrados.map(t => renderTicketCard(t, true))
                             )}
                         </div>
 
