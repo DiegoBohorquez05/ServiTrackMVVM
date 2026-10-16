@@ -16,6 +16,9 @@ export function App() {
     const [password, setPassword] = useState("");
     const [rolId, setRolId] = useState("");
 
+    // Estados para cambiar de rol por usuario
+    const [selectedRoles, setSelectedRoles] = useState({});
+
     // Estados para Tickets
     const [tickets, setTickets] = useState([]);
     const [titulo, setTitulo] = useState("");
@@ -34,18 +37,31 @@ export function App() {
             const rolNombre = currentUser.roles?.nombre?.toLowerCase() || "";
 
             if (rolNombre.includes("administrador")) {
-                const [usersData, rolesData] = await Promise.all([
+                // Cargar usuarios, roles Y TAMBIÉN todos los tickets
+                const [usersData, rolesData, ticketsData] = await Promise.all([
                     userService.getUsuarios(),
                     userService.getRoles(),
+                    ticketService.getTickets(), // Carga todos los tickets del sistema
                 ]);
                 setUsuarios(usersData);
                 setRoles(rolesData);
+                setTickets(ticketsData);
+
                 const assignable = rolesData.filter(r => r.nombre.toLowerCase() !== "administrador");
                 if (assignable.length > 0) setRolId(assignable[0].id);
+
+                const initialRolesState = {};
+                usersData.forEach(u => {
+                    initialRolesState[u.id] = u.rol_id;
+                });
+                setSelectedRoles(initialRolesState);
+
             } else if (rolNombre.includes("tecnico") || rolNombre.includes("soporte")) {
+                // Técnico ve todos los tickets
                 const ticketsData = await ticketService.getTickets();
                 setTickets(ticketsData);
             } else {
+                // Cliente/Empleado solo ve sus propios tickets
                 const ticketsData = await ticketService.getTickets(currentUser.id);
                 setTickets(ticketsData);
             }
@@ -90,6 +106,18 @@ export function App() {
         }
     };
 
+    const handleRoleChangeSubmit = async (usuarioId) => {
+        const newRolId = selectedRoles[usuarioId];
+        if (!newRolId) return;
+        try {
+            await userService.updateUsuarioRol(usuarioId, newRolId);
+            setAdminSuccess("Rol de usuario actualizado con éxito.");
+            fetchData(user);
+        } catch (err) {
+            setAdminError("Error al actualizar el rol: " + err.message);
+        }
+    };
+
     const handleCreateTicket = async (e) => {
         e.preventDefault();
         setTicketError(null);
@@ -129,7 +157,6 @@ export function App() {
     const ticketsEnProceso = ticketsFiltrados.filter(t => t.estado === "En Proceso");
     const ticketsCerrados = ticketsFiltrados.filter(t => t.estado === "Cerrado" || t.estado === "Resuelto");
 
-    // Función genérica para renderizar una tarjeta de ticket
     const renderTicketCard = (t, isClosedColumn = false) => (
         <div key={t.id} style={{ background: "#111827", padding: "12px", borderRadius: "6px", marginBottom: "10px", border: "1px solid #1f2937", fontSize: "12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
@@ -142,12 +169,9 @@ export function App() {
             <div style={{ color: "#9ca3af", fontSize: "11px", marginBottom: "8px" }}>{t.descripcion}</div>
             {t.usuarios?.nombre && <div style={{ color: "#6b7280", fontSize: "10px", marginBottom: "8px" }}>Por: {t.usuarios.nombre}</div>}
 
-            {/* Historial de Respuestas */}
             {t.historial && t.historial.length > 0 && (
                 <div style={{ marginTop: "8px", background: "#1f2937", padding: "8px", borderRadius: "4px", borderLeft: `3px solid ${isClosedColumn ? "#4ade80" : "#0ea5e9"}` }}>
-          <span style={{ color: isClosedColumn ? "#4ade80" : "#38bdf8", fontWeight: "bold", fontSize: "10px", display: "block", marginBottom: "3px" }}>
-            💬 Historial:
-          </span>
+                    <span style={{ color: isClosedColumn ? "#4ade80" : "#38bdf8", fontWeight: "bold", fontSize: "10px", display: "block", marginBottom: "3px" }}>💬 Historial:</span>
                     {t.historial.map((h, i) => (
                         <div key={i} style={{ fontSize: "11px", color: "#e5e7eb", marginBottom: "2px" }}>
                             <strong style={{ color: h.autor === "Cliente" ? "#a7f3d0" : "#bfdbfe" }}>{h.autor || "Soporte"}:</strong> {h.mensaje}
@@ -156,7 +180,6 @@ export function App() {
                 </div>
             )}
 
-            {/* Acciones para TÉCNICOS (Solo si el ticket NO está en la columna de Cerrados) */}
             {isTecnico && !isClosedColumn && (
                 <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
                     <div style={{ fontSize: "10px", color: "#38bdf8", marginBottom: "4px" }}>Agregar respuesta / diagnóstico:</div>
@@ -200,7 +223,6 @@ export function App() {
                 </div>
             )}
 
-            {/* Acciones para CLIENTE / EMPLEADO (Solo si el ticket NO está cerrado) */}
             {isCliente && !isClosedColumn && (
                 <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
                     <div style={{ fontSize: "10px", color: "#a7f3d0", marginBottom: "4px" }}>¿El problema persiste? Responder a Soporte:</div>
@@ -244,6 +266,33 @@ export function App() {
                     </div>
                 </div>
             )}
+        </div>
+    );
+
+    // Helper para renderizar cada usuario en el directorio con la opción de cambiar rol
+    const renderUserCard = (u) => (
+        <div key={u.id} style={{ background: "#111827", padding: "12px", borderRadius: "6px", marginBottom: "8px", border: "1px solid #1f2937", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+                <div style={{ fontSize: "13px", fontWeight: "bold", color: "#f3f4f6" }}>{u.nombre}</div>
+                <div style={{ fontSize: "11px", color: "#9ca3af" }}>{u.correo}</div>
+            </div>
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <select
+                    value={selectedRoles[u.id] || u.rol_id}
+                    onChange={(e) => setSelectedRoles({ ...selectedRoles, [u.id]: Number(e.target.value) })}
+                    style={{ background: "#1f2937", border: "1px solid #374151", borderRadius: "4px", color: "#fff", padding: "4px 8px", fontSize: "11px" }}
+                >
+                    {assignableRoles.map((r) => (
+                        <option key={r.id} value={r.id}>{r.nombre}</option>
+                    ))}
+                </select>
+                <button
+                    onClick={() => handleRoleChangeSubmit(u.id)}
+                    style={{ background: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", padding: "5px 10px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}
+                >
+                    Cambiar
+                </button>
+            </div>
         </div>
     );
 
@@ -299,28 +348,23 @@ export function App() {
                         <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "20px", marginBottom: "24px" }}>
                             <h3 style={{ fontSize: "15px", margin: "0 0 15px 0", color: "#e5e7eb" }}>📂 Directorio de Usuarios Registrados</h3>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+
+                                {/* Columna Personal de Soporte */}
                                 <div style={{ background: "#0b0f19", border: "1px solid #1f2937", borderRadius: "6px", padding: "15px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", fontSize: "12px", color: "#9ca3af", fontWeight: "bold" }}>
                                         <span>🎧 PERSONAL DE SOPORTE TI</span><span>{soporteUsers.length}</span>
                                     </div>
-                                    {soporteUsers.map((u) => (
-                                        <div key={u.id} style={{ background: "#111827", padding: "10px 12px", borderRadius: "6px", marginBottom: "8px", border: "1px solid #1f2937" }}>
-                                            <div style={{ fontSize: "13px", fontWeight: "bold", color: "#f3f4f6" }}>{u.nombre}</div>
-                                            <div style={{ fontSize: "11px", color: "#9ca3af" }}>{u.correo}</div>
-                                        </div>
-                                    ))}
+                                    {soporteUsers.map((u) => renderUserCard(u))}
                                 </div>
+
+                                {/* Columna Empleados / Trabajadores */}
                                 <div style={{ background: "#0b0f19", border: "1px solid #1f2937", borderRadius: "6px", padding: "15px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", fontSize: "12px", color: "#9ca3af", fontWeight: "bold" }}>
                                         <span>👥 EMPLEADOS / TRABAJADORES</span><span>{empleadoUsers.length}</span>
                                     </div>
-                                    {empleadoUsers.map((u) => (
-                                        <div key={u.id} style={{ background: "#111827", padding: "10px 12px", borderRadius: "6px", marginBottom: "8px", border: "1px solid #1f2937" }}>
-                                            <div style={{ fontSize: "13px", fontWeight: "bold", color: "#f3f4f6" }}>{u.nombre}</div>
-                                            <div style={{ fontSize: "11px", color: "#9ca3af" }}>{u.correo}</div>
-                                        </div>
-                                    ))}
+                                    {empleadoUsers.map((u) => renderUserCard(u))}
                                 </div>
+
                             </div>
                         </div>
                     </>
