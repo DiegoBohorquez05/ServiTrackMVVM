@@ -28,7 +28,7 @@ export function App() {
     const [ticketError, setTicketError] = useState(null);
     const [ticketSuccess, setTicketSuccess] = useState(null);
 
-    // Filtros para Técnico
+    // Filtros visuales para el Tablero (Disponibles para todos los usuarios)
     const [filtroCategoria, setFiltroCategoria] = useState("Todas");
     const [filtroPrioridad, setFiltroPrioridad] = useState("Todas");
 
@@ -37,11 +37,10 @@ export function App() {
             const rolNombre = currentUser.roles?.nombre?.toLowerCase() || "";
 
             if (rolNombre.includes("administrador")) {
-                // Cargar usuarios, roles Y TAMBIÉN todos los tickets
                 const [usersData, rolesData, ticketsData] = await Promise.all([
                     userService.getUsuarios(),
                     userService.getRoles(),
-                    ticketService.getTickets(), // Carga todos los tickets del sistema
+                    ticketService.getTickets(),
                 ]);
                 setUsuarios(usersData);
                 setRoles(rolesData);
@@ -57,11 +56,9 @@ export function App() {
                 setSelectedRoles(initialRolesState);
 
             } else if (rolNombre.includes("tecnico") || rolNombre.includes("soporte")) {
-                // Técnico ve todos los tickets
                 const ticketsData = await ticketService.getTickets();
                 setTickets(ticketsData);
             } else {
-                // Cliente/Empleado solo ve sus propios tickets
                 const ticketsData = await ticketService.getTickets(currentUser.id);
                 setTickets(ticketsData);
             }
@@ -126,7 +123,7 @@ export function App() {
             await ticketService.createTicket({
                 titulo, descripcion, categoria, prioridad, cliente_id: user.id,
             });
-            setTicketSuccess("¡Ticket creado y enviado a soporte exitosamente!");
+            setTicketSuccess("¡Ticket creado y procesado con sugerencia de IA exitosamente!");
             setTitulo(""); setDescripcion("");
             fetchData(user);
         } catch (err) {
@@ -147,6 +144,7 @@ export function App() {
     const soporteUsers = usuarios.filter(u => u.roles?.nombre?.toLowerCase().includes("tecnico") || u.roles?.nombre?.toLowerCase().includes("soporte"));
     const empleadoUsers = usuarios.filter(u => u.roles?.nombre?.toLowerCase().includes("cliente") || u.roles?.nombre?.toLowerCase().includes("empleado") || u.roles?.nombre?.toLowerCase().includes("trabajador"));
 
+    // Aplicación de los Filtros
     const ticketsFiltrados = tickets.filter(t => {
         const matchCat = filtroCategoria === "Todas" || t.categoria === filtroCategoria;
         const matchPri = filtroPrioridad === "Todas" || t.prioridad === filtroPrioridad;
@@ -157,6 +155,7 @@ export function App() {
     const ticketsEnProceso = ticketsFiltrados.filter(t => t.estado === "En Proceso");
     const ticketsCerrados = ticketsFiltrados.filter(t => t.estado === "Cerrado" || t.estado === "Resuelto");
 
+    // Renderizado dinámico de tarjetas de Tickets
     const renderTicketCard = (t, isClosedColumn = false) => (
         <div key={t.id} style={{ background: "#111827", padding: "12px", borderRadius: "6px", marginBottom: "10px", border: "1px solid #1f2937", fontSize: "12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
@@ -169,18 +168,7 @@ export function App() {
             <div style={{ color: "#9ca3af", fontSize: "11px", marginBottom: "8px" }}>{t.descripcion}</div>
             {t.usuarios?.nombre && <div style={{ color: "#6b7280", fontSize: "10px", marginBottom: "8px" }}>Por: {t.usuarios.nombre}</div>}
 
-            {t.historial && t.historial.length > 0 && (
-                <div style={{ marginTop: "8px", background: "#1f2937", padding: "8px", borderRadius: "4px", borderLeft: `3px solid ${isClosedColumn ? "#4ade80" : "#0ea5e9"}` }}>
-                    <span style={{ color: isClosedColumn ? "#4ade80" : "#38bdf8", fontWeight: "bold", fontSize: "10px", display: "block", marginBottom: "3px" }}>💬 Historial:</span>
-                    {t.historial.map((h, i) => (
-                        <div key={i} style={{ fontSize: "11px", color: "#e5e7eb", marginBottom: "2px" }}>
-                            <strong style={{ color: h.autor === "Cliente" ? "#a7f3d0" : "#bfdbfe" }}>{h.autor || "Soporte"}:</strong> {h.mensaje}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Bloque de SUGERENCIA IA */}
+            {/* Bloque de SUGERENCIA DE LA IA */}
             {t.sugerencia_ia && (
                 <div style={{ background: "#06202e", border: "1px solid #08506b", borderRadius: "6px", padding: "10px", marginTop: "10px" }}>
                     <div style={{ color: "#38bdf8", fontWeight: "bold", fontSize: "11px", display: "flex", alignItems: "center", gap: "5px", marginBottom: "4px" }}>
@@ -192,6 +180,19 @@ export function App() {
                 </div>
             )}
 
+            {/* Historial de Respuestas */}
+            {t.historial && t.historial.length > 0 && (
+                <div style={{ marginTop: "8px", background: "#1f2937", padding: "8px", borderRadius: "4px", borderLeft: `3px solid ${isClosedColumn ? "#4ade80" : "#0ea5e9"}` }}>
+                    <span style={{ color: isClosedColumn ? "#4ade80" : "#38bdf8", fontWeight: "bold", fontSize: "10px", display: "block", marginBottom: "3px" }}>💬 Historial:</span>
+                    {t.historial.map((h, i) => (
+                        <div key={i} style={{ fontSize: "11px", color: "#e5e7eb", marginBottom: "2px" }}>
+                            <strong style={{ color: h.autor === "Cliente" ? "#a7f3d0" : "#bfdbfe" }}>{h.autor || "Soporte"}:</strong> {h.mensaje}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Acciones para TÉCNICOS */}
             {isTecnico && !isClosedColumn && (
                 <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
                     <div style={{ fontSize: "10px", color: "#38bdf8", marginBottom: "4px" }}>Agregar respuesta / diagnóstico:</div>
@@ -235,6 +236,7 @@ export function App() {
                 </div>
             )}
 
+            {/* Acciones para CLIENTES / EMPLEADOS */}
             {isCliente && !isClosedColumn && (
                 <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
                     <div style={{ fontSize: "10px", color: "#a7f3d0", marginBottom: "4px" }}>¿El problema persiste? Responder a Soporte:</div>
@@ -281,7 +283,6 @@ export function App() {
         </div>
     );
 
-    // Helper para renderizar cada usuario en el directorio con la opción de cambiar rol
     const renderUserCard = (u) => (
         <div key={u.id} style={{ background: "#111827", padding: "12px", borderRadius: "6px", marginBottom: "8px", border: "1px solid #1f2937", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
@@ -360,23 +361,18 @@ export function App() {
                         <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "20px", marginBottom: "24px" }}>
                             <h3 style={{ fontSize: "15px", margin: "0 0 15px 0", color: "#e5e7eb" }}>📂 Directorio de Usuarios Registrados</h3>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-
-                                {/* Columna Personal de Soporte */}
                                 <div style={{ background: "#0b0f19", border: "1px solid #1f2937", borderRadius: "6px", padding: "15px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", fontSize: "12px", color: "#9ca3af", fontWeight: "bold" }}>
                                         <span>🎧 PERSONAL DE SOPORTE TI</span><span>{soporteUsers.length}</span>
                                     </div>
                                     {soporteUsers.map((u) => renderUserCard(u))}
                                 </div>
-
-                                {/* Columna Empleados / Trabajadores */}
                                 <div style={{ background: "#0b0f19", border: "1px solid #1f2937", borderRadius: "6px", padding: "15px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", fontSize: "12px", color: "#9ca3af", fontWeight: "bold" }}>
                                         <span>👥 EMPLEADOS / TRABAJADORES</span><span>{empleadoUsers.length}</span>
                                     </div>
                                     {empleadoUsers.map((u) => renderUserCard(u))}
                                 </div>
-
                             </div>
                         </div>
                     </>
@@ -420,35 +416,33 @@ export function App() {
                     </div>
                 )}
 
-                {/* BARRA DE FILTROS TÉCNICO */}
-                {isTecnico && (
-                    <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "15px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-            <span style={{ fontSize: "14px", fontWeight: "bold", color: "#e5e7eb", display: "flex", alignItems: "center", gap: "8px" }}>
-              🔍 Filtrar Tickets
-            </span>
-                        <div style={{ display: "flex", gap: "15px", fontSize: "13px", color: "#9ca3af", alignItems: "center" }}>
-                            <div>
-                                Categoría:{" "}
-                                <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} style={{ background: "#1f2937", color: "#fff", border: "1px solid #374151", padding: "6px 10px", borderRadius: "6px", marginLeft: "5px" }}>
-                                    <option value="Todas">Todas las categorías</option>
-                                    <option value="Redes">Redes</option>
-                                    <option value="Hardware">Hardware</option>
-                                    <option value="Software">Software</option>
-                                    <option value="Otros">Otros</option>
-                                </select>
-                            </div>
-                            <div>
-                                Prioridad:{" "}
-                                <select value={filtroPrioridad} onChange={(e) => setFiltroPrioridad(e.target.value)} style={{ background: "#1f2937", color: "#fff", border: "1px solid #374151", padding: "6px 10px", borderRadius: "6px", marginLeft: "5px" }}>
-                                    <option value="Todas">Todas las prioridades</option>
-                                    <option value="Baja">Baja</option>
-                                    <option value="Media">Media</option>
-                                    <option value="Alta">Alta</option>
-                                </select>
-                            </div>
+                {/* BARRA DE FILTROS - AHORA VISIBLE PARA TODOS LOS ROLES */}
+                <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "15px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+          <span style={{ fontSize: "14px", fontWeight: "bold", color: "#e5e7eb", display: "flex", alignItems: "center", gap: "8px" }}>
+            🔍 Filtrar Tickets del Tablero
+          </span>
+                    <div style={{ display: "flex", gap: "15px", fontSize: "13px", color: "#9ca3af", alignItems: "center" }}>
+                        <div>
+                            Categoría:{" "}
+                            <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)} style={{ background: "#1f2937", color: "#fff", border: "1px solid #374151", padding: "6px 10px", borderRadius: "6px", marginLeft: "5px" }}>
+                                <option value="Todas">Todas las categorías</option>
+                                <option value="Redes">Redes</option>
+                                <option value="Hardware">Hardware</option>
+                                <option value="Software">Software</option>
+                                <option value="Otros">Otros</option>
+                            </select>
+                        </div>
+                        <div>
+                            Prioridad:{" "}
+                            <select value={filtroPrioridad} onChange={(e) => setFiltroPrioridad(e.target.value)} style={{ background: "#1f2937", color: "#fff", border: "1px solid #374151", padding: "6px 10px", borderRadius: "6px", marginLeft: "5px" }}>
+                                <option value="Todas">Todas las prioridades</option>
+                                <option value="Baja">Baja</option>
+                                <option value="Media">Media</option>
+                                <option value="Alta">Alta</option>
+                            </select>
                         </div>
                     </div>
-                )}
+                </div>
 
                 {/* TABLERO DE INCIDENCIAS */}
                 <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: "8px", padding: "20px" }}>
