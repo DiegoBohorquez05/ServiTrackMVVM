@@ -1,23 +1,28 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import role_router, user_router, ticket_router
+from prometheus_fastapi_instrumentator import Instrumentator
 
-app = FastAPI(title="ServiTrack API (Direct Supabase)", version="2.0")
+# Importar los routers existentes
+from routers.user_router import router as user_router
+from routers.ticket_router import router as ticket_router
+from routers.role_router import router as role_router  # si lo tienes
 
-# Configurar CORS para permitir peticiones del frontend (React / Vite)
+app = FastAPI(title="ServiTrack API", version="1.0.0")
+
+# Configurar CORS para permitir peticiones desde React
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción puedes restringirlo a tu dominio o puerto de frontend
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Registrar los routers
-app.include_router(role_router.router)
-app.include_router(user_router.router)
-app.include_router(ticket_router.router)
+# Incluir los routers
+app.include_router(user_router)
+app.include_router(ticket_router)
+if 'role_router' in locals():
+    app.include_router(role_router)
 
-@app.get("/")
-def read_root():
-    return {"message": "Bienvenido a ServiTrack API - Conectado directo a Supabase"}
+# 2. Inicializar y exponer las métricas para Prometheus
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
