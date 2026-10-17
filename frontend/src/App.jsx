@@ -180,6 +180,18 @@ export function App() {
                 </div>
             )}
 
+            {/* Bloque de SUGERENCIA IA */}
+            {t.sugerencia_ia && (
+                <div style={{ background: "#06202e", border: "1px solid #08506b", borderRadius: "6px", padding: "10px", marginTop: "10px" }}>
+                    <div style={{ color: "#38bdf8", fontWeight: "bold", fontSize: "11px", display: "flex", alignItems: "center", gap: "5px", marginBottom: "4px" }}>
+                        🤖 SUGERENCIA IA:
+                    </div>
+                    <div style={{ color: "#e0f2fe", fontSize: "11px", whiteSpace: "pre-line", lineHeight: "1.4" }}>
+                        {t.sugerencia_ia}
+                    </div>
+                </div>
+            )}
+
             {isTecnico && !isClosedColumn && (
                 <div style={{ marginTop: "8px", borderTop: "1px solid #1f2937", paddingTop: "8px" }}>
                     <div style={{ fontSize: "10px", color: "#38bdf8", marginBottom: "4px" }}>Agregar respuesta / diagnóstico:</div>

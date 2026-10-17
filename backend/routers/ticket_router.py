@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from config.supabase import supabase
+from services.ai_service import generar_respuesta_contencion  # Importamos el microservicio de IA
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
 
@@ -16,7 +17,7 @@ class TicketCreate(BaseModel):
 class TicketUpdate(BaseModel):
     respuesta: Optional[str] = None
     estado: Optional[str] = None
-    autor: Optional[str] = "Técnico"  # Puede ser "Cliente" o "Técnico"
+    autor: Optional[str] = "Técnico"
 
 @router.get("/")
 def get_tickets(cliente_id: Optional[int] = None):
@@ -39,6 +40,14 @@ def get_tickets(cliente_id: Optional[int] = None):
 @router.post("/")
 def create_ticket(ticket: TicketCreate):
     try:
+        # 1. Invocamos al microservicio de la IA para generar la sugerencia inicial
+        sugerencia_ia = generar_respuesta_contencion(
+            titulo=ticket.titulo,
+            descripcion=ticket.descripcion,
+            categoria=ticket.categoria
+        )
+
+        # 2. Guardamos el ticket con la sugerencia de la IA
         ticket_data = {
             "titulo": ticket.titulo,
             "descripcion": ticket.descripcion,
@@ -46,13 +55,18 @@ def create_ticket(ticket: TicketCreate):
             "prioridad": ticket.prioridad,
             "estado": "Abierto",
             "cliente_id": ticket.cliente_id,
+            "sugerencia_ia": sugerencia_ia,  # Guardamos la respuesta automática de la IA
             "historial": []
         }
+
         response = supabase.table("tickets").insert(ticket_data).execute()
         if not response.data:
             raise HTTPException(status_code=400, detail="No se pudo crear el ticket")
+
         return {"message": "Ticket creado exitosamente", "ticket": response.data[0]}
+
     except Exception as e:
+        print("Error al crear ticket:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{ticket_id}")
@@ -91,5 +105,4 @@ def update_ticket(ticket_id: int, ticket: TicketUpdate):
     except HTTPException as he:
         raise he
     except Exception as e:
-        print("Error en update_ticket:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
