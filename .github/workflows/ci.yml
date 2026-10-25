@@ -29,8 +29,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Verificar que el servidor compila e inicia correctamente (Entrando a la carpeta backend)
+      # 4. Verificar que el servidor compila e inicia correctamente
       - name: Verificar compilación del sistema
         run: |
           cd backend
           python -c "import main; print('¡Construcción y sintaxis del backend exitosas!')"
+        env:
+          SUPABASE_URL: "https://dummy.supabase.co"
+          SUPABASE_KEY: "dummy_key_para_ci_build"
